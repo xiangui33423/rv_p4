@@ -1,0 +1,66 @@
+{
+  "eth_dst": {
+    "offset": 0,
+    "width": 6
+  },
+  "eth_src": {
+    "offset": 6,
+    "width": 6
+  },
+  "eth_type": {
+    "offset": 12,
+    "width": 2
+  },
+  "vlan_tci": {
+    "offset": 14,
+    "width": 2
+  },
+  "ipv4_ihl": {
+    "offset": 18,
+    "width": 1
+  },
+  "ipv4_dscp": {
+    "offset": 19,
+    "width": 1
+  },
+  "ipv4_tot_len": {
+    "offset": 20,
+    "width": 2
+  },
+  "ipv4_ttl": {
+    "offset": 26,
+    "width": 1
+  },
+  "ipv4_proto": {
+    "offset": 27,
+    "width": 1
+  },
+  "ipv4_cksum": {
+    "offset": 28,
+    "width": 2
+  },
+  "ipv4_src": {
+    "offset": 30,
+    "width": 4
+  },
+  "ipv4_dst": {
+    "offset": 34,
+    "width": 4
+  },
+  "tcp_sport": {
+    "offset": 38,
+    "width": 2
+  },
+  "tcp_dport": {
+    "offset": 40,
+    "width": 2
+  },
+  "udp_sport": {
+    "offset": 38,
+    "width": 2
+  },
+  "udp_dport": {
+    "offset": 40,
+    "width": 2
+  }
+}

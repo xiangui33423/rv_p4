@@ -1,0 +1,160 @@
+{
+  "forward": {
+    "action_id": 4097,
+    "params": [
+      "port"
+    ],
+    "primitives": [
+      {
+        "op": 10,
+        "dst_off": 0,
+        "src_off": 0,
+        "imm_val": 0,
+        "fwidth": 1
+      }
+    ]
+  },
+  "drop": {
+    "action_id": 4098,
+    "params": [],
+    "primitives": [
+      {
+        "op": 9,
+        "dst_off": 0,
+        "src_off": 0,
+        "imm_val": 0,
+        "fwidth": 4
+      }
+    ]
+  },
+  "permit": {
+    "action_id": 8193,
+    "params": [],
+    "primitives": [
+      {
+        "op": 0,
+        "dst_off": 0,
+        "src_off": 0,
+        "imm_val": 0,
+        "fwidth": 4
+      }
+    ]
+  },
+  "deny": {
+    "action_id": 8194,
+    "params": [],
+    "primitives": [
+      {
+        "op": 9,
+        "dst_off": 0,
+        "src_off": 0,
+        "imm_val": 0,
+        "fwidth": 4
+      }
+    ]
+  },
+  "l2_forward": {
+    "action_id": 12289,
+    "params": [
+      "port"
+    ],
+    "primitives": [
+      {
+        "op": 10,
+        "dst_off": 0,
+        "src_off": 0,
+        "imm_val": 0,
+        "fwidth": 1
+      }
+    ]
+  },
+  "flood": {
+    "action_id": 12290,
+    "params": [],
+    "primitives": [
+      {
+        "op": 0,
+        "dst_off": 0,
+        "src_off": 0,
+        "imm_val": 0,
+        "fwidth": 4
+      }
+    ]
+  },
+  "set_ttl_dec": {
+    "action_id": 16385,
+    "params": [],
+    "primitives": [
+      {
+        "op": 3,
+        "dst_off": 26,
+        "src_off": 0,
+        "imm_val": 4294967295,
+        "fwidth": 1
+      }
+    ]
+  },
+  "set_dscp": {
+    "action_id": 16386,
+    "params": [
+      "dscp"
+    ],
+    "primitives": [
+      {
+        "op": 1,
+        "dst_off": 19,
+        "src_off": 0,
+        "imm_val": 0,
+        "fwidth": 1
+      }
+    ]
+  },
+  "nop": {
+    "action_id": 0,
+    "params": [],
+    "primitives": [
+      {
+        "op": 0,
+        "dst_off": 0,
+        "src_off": 0,
+        "imm_val": 0,
+        "fwidth": 4
+      }
+    ]
+  },
+  "action_forward": {
+    "action_id": 20480,
+    "params": [],
+    "primitives": []
+  },
+  "action_drop": {
+    "action_id": 20481,
+    "params": [],
+    "primitives": []
+  },
+  "action_permit": {
+    "action_id": 20482,
+    "params": [],
+    "primitives": []
+  },
+  "action_deny": {
+    "action_id": 20483,
+    "params": [],
+    "primitives": []
+  },
+  "action_l2_forward": {
+    "action_id": 20484,
+    "params": [],
+    "primitives": []
+  },
+  "action_flood": {
+    "action_id": 20485,
+    "params": [],
+    "primitives": []
+  },
+  "action_ttl_dec": {
+    "action_id": 20486,
+    "params": [],
+    "primitives": []
+  }
+}

@@ -1,0 +1,30 @@
+RV-P4 C-to-HW Compiler Report
+========================================
+Source: example_dataplane.c
+Tables: 0
+Actions: 16
+Parser states: 7
+
+Table Allocation:
+
+Actions:
+  0x1001  forward
+  0x1002  drop
+  0x2001  permit
+  0x2002  deny
+  0x3001  l2_forward
+  0x3002  flood
+  0x4001  set_ttl_dec
+  0x4002  set_dscp
+  0x0000  nop
+  0x5000  action_forward
+  0x5001  action_drop
+  0x5002  action_permit
+  0x5003  action_deny
+  0x5004  action_l2_forward
+  0x5005  action_flood
+  0x5006  action_ttl_dec
+
+Resource Usage:
+  MAU stages used: 0/24
+  Parser TCAM entries: 7/256
