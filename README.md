@@ -1,9 +1,92 @@
 # RV-P4 — RISC-V + P4 可编程交换机
 
+<div align="center">
+
+![Badge](https://img.shields.io/badge/Language-SystemVerilog%20%2B%20C-blue)
+![Badge](https://img.shields.io/badge/Architecture-RISC--V%20%2B%20P4-brightgreen)
+![Badge](https://img.shields.io/badge/Tests-44%2F44%20PASS-success)
+![Badge](https://img.shields.io/badge/License-Academic-orange)
+
+**一个面向数据中心的高性能可编程交换机原型，集成 RISC-V 控制面与 P4 数据平面**
+
+</div>
+
 RV-P4 是一个面向数据中心的高性能可编程交换机原型，由两部分组成：
 
 - **RTL 数据平面**：基于 PISA 流水线（24 MAU 级，2K×512b TCAM/级，256 队列 TM）
 - **控制面固件**：运行在片上香山 RISC-V 64-bit 核，通过 MMIO/APB 驱动 HAL 操作数据平面
+
+### 项目统计
+
+| 指标 | 数值 |
+|------|------|
+| **RTL 代码** | SystemVerilog，24 级 MAU 流水线 |
+| **控制面** | XiangShan RISC-V 64-bit 核心 |
+| **测试覆盖** | 44 个单元/集成测试（100% PASS） |
+| **联合仿真** | RTL + C 固件协同验证 |
+| **端口数** | 32 × 全双工以太网 SerDes |
+| **TCAM 容量** | 每级 2048 条，共 24 级 |
+| **PHV 宽度** | 4096 bit（512 字节） |
+
+---
+
+## 系统架构概览
+
+### 快速路径（Fast Path）- 线速转发
+
+```
+Ingress Packet
+      │
+      ▼
+[Parser TCAM] → PHV Extract
+      │
+      ▼
+[MAU Stage 0: IPv4 LPM Route]
+      │
+      ▼
+[MAU Stage 1: ACL Filter]
+      │
+   ┌──┴──┐
+   │     │
+  DROP FORWARD
+   │     │
+   └──┬──┘
+      ▼
+[MAU Stage 2-6: FDB/VLAN/QoS]
+      │
+      ▼
+[Traffic Manager: DWRR + SP]
+      │
+      ▼
+[Egress: MAC TX → SerDes TX]
+```
+
+### 慢速路径（Slow Path）- CPU Punt
+
+```
+Packet → Punt FIFO → RISC-V Control Plane
+                      ├─ ARP Resolution
+                      ├─ FDB Learning
+                      └─ Dynamic Table Updates
+```
+
+### 控制面固件栈
+
+```
+RISC-V 64-bit Processor (XiangShan Nanhu)
+      │
+      ▼
+[MMIO Bus + HAL API]
+      │
+      ├─ route.c       (IPv4 LPM 路由)
+      ├─ acl.c         (ACL 过滤)
+      ├─ fdb.c         (L2 FDB)
+      ├─ arp.c         (ARP 邻居表)
+      ├─ vlan.c        (VLAN 管理)
+      ├─ qos.c         (QoS 调度)
+      ├─ cli.c         (UART 命令行)
+      └─ rv_p4_hal.c   (底层驱动)
+```
 
 ---
 
@@ -420,6 +503,63 @@ cp_main.c
 
 ---
 
+## 关键技术亮点
+
+### 1️⃣ P4 可编程解析器
+
+解析器由 256 × 640 bit TCAM 驱动，支持灵活的字段提取，可通过固件动态更新解析规则，无需重新编译 RTL。
+
+### 2️⃣ 原子流表更新（TUE - Table Update Engine）
+
+采用 shadow-write + pointer-swap 机制，数据面持续工作无中断地更新 TCAM，避免读写竞争。
+
+### 3️⃣ 24 级流水线 MAU 架构
+
+每级独立的 TCAM 匹配 + Action SRAM，全流水吞吐 **1 PHV/周期**，当前使用 Stage 0-6 实现主要交换功能。
+
+### 4️⃣ Verilator RTL 协同仿真
+
+C 固件直接驱动 SystemVerilog RTL，验证端到端正确性，支持硬件-软件联合调试。
+
+---
+
+## 学习价值
+
+本项目涵盖以下领域：
+
+- ✅ **硬件设计** - SystemVerilog RTL 架构与设计模式
+- ✅ **数据结构** - TCAM、SRAM、哈希表等高性能存储
+- ✅ **协议处理** - 以太网、IPv4、ARP、VLAN、QoS
+- ✅ **流水线架构** - MAU 级联、延迟与吞吐权衡
+- ✅ **时钟域跨越** - CDC（Clock Domain Crossing）技术
+- ✅ **嵌入式系统** - RISC-V 固件开发与 HAL 抽象
+- ✅ **硬件-软件协同** - RTL 仿真与协同验证
+- ✅ **网络交换** - 数据中心交换机设计原理
+
+---
+
+## 文档导航
+
+| 文档 | 内容 |
+|------|------|
+| [README.md](README.md) | **本文档** - 项目入门、编译与测试 |
+| [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) | 可视化架构与设计概览 |
+| [architecture.md](architecture.md) | 详细架构规格与接口定义 |
+| [design_spec.md](design_spec.md) | 硬件细节规格说明 |
+| [FILES.md](FILES.md) | 完整文件索引与描述 |
+
+---
+
 ## 许可证
 
 本项目仅供学术研究与教学使用。
+
+---
+
+<div align="center">
+
+**Made with ❤️ for Open-Source Hardware Design Community**
+
+如有疑问或建议，欢迎提交 Issue 或 Pull Request！
+
+</div>
