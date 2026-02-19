@@ -1,5 +1,386 @@
-xs-env/
+# ============================================================
+# RV-P4 ASIC Design - Git Ignore Configuration
+# ============================================================
+
+# ============================================================
+# Simulation & RTL Tools
+# ============================================================
+
+# Verilator
 obj_dir/
-tb/cosim/obj_dir/
-tb/cosim/cosim_sim
+*.exe
+*.o
+*.a
+*.so
+*.dylib
+Makefile.verilator
+
+# VCS/ModelSim/Questasim
+work/
+*.wdb
+*.vcd
+*.vpd
+*.fsdb
+*.daidir/
+simv
+simv.daidir/
+
+# xsim/Vivado
+xsim.dir/
+*.pb
+*.jou
+*.log
+*.fuse
+
+# Cadence tools
+xcelium.d/
+xmvlog.dir/
+xmsim.d/
+*.wrf
+
+# Synopsys tools
+*.mr
+*.srm
+work_*
+
+# CocoTB simulation
+cocotb_sim/
+results/
+
+# XiangShan environment (large, should be cached separately)
+xs-env/
+
+# ============================================================
+# Synthesis & Implementation
+# ============================================================
+
+# Yosys synthesis output
+*.blif
+*.json
+synth_results/
+
+# OpenROAD P&R output
+implementation/
+*.def
+*.defrw
+*.spef
+*.pl
+*.cts
+*.guide
+
+# GDS-II files (large, version separately if needed)
+*.gds
+*.gds2
+*.stream
+*.strm
+
+# Technology files
+*.lib
+*.lef
+*.tech
+*.tf
+*.nangates
+
+# Liberty/timing files
+*.db
+*.sdb
+
+# Constraint files (generated)
+*.sdc.bak
+*.xdc.bak
+
+# Netlists (generated)
+*.net
+*.v.bak
+
+# ============================================================
+# EDA Tool Generated Files
+# ============================================================
+
+# Logs and reports
+*.log
+logs/
+reports/
+*.rpt
+*.rpt.gz
+
+# Timing/Power analysis
+*.sta
+*.pow
+*.saif
+*.vcd
+*.evcd
+
+# DRC/LVS
+*.lvsdb
+*.lvs
+*.drc
+drc_errors.txt
+
+# Waveform/trace files
+*.gtkw
+*.ghw
+*.vcd.gz
+*.fsdb.gz
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*~
+*.backup
+
+# Intermediate files
+*.o
+*.a
+*.so
+*.ko
+*.lo
+
+# ============================================================
+# IDE & Editor
+# ============================================================
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# Vim/Neovim
+.vim/
+*.swp
+*.swo
+*~
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# Kate
+.kate-swp
+
+# GNU Emacs
+*~
+\#*\#
+.\#*
+
+# ============================================================
+# Build & Dependencies
+# ============================================================
+
+# Node.js/npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# PDK & Tool installations (optional - uncomment if needed)
+# pdk/
+# tools/
+
+# ============================================================
+# OS Specific
+# ============================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Windows
+Thumbs.db
+Desktop.ini
+.Thumbs.db
+
+# Linux
+.directory
+
+# ============================================================
+# Build & Output Directories
+# ============================================================
+
+# Build directories
+build/
+dist/
+*.o
+*.a
+
+# Cmake
+CMakeFiles/
+cmake_install.cmake
+CMakeCache.txt
+Makefile.cmake
+
+# Gradle
+.gradle/
+build/
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+
+# ============================================================
+# Documentation & Reports
+# ============================================================
+
+# Generated documentation (keep source docs)
+docs/_build/
+site/
+.doctrees/
+
+# ============================================================
+# Project Specific
+# ============================================================
+
+# Temporary simulation results
+test_results/
+sim_results/
+cosim_sim
+
+# Firmware binaries
+*.bin
+*.elf
+*.hex
+*.elf.map
 sw/firmware/test/run_tests
+
+# Generated makefiles
+Makefile_verilator
+*.makefile
+
+# Docker
+.dockerignore
+docker.env
+
+# ============================================================
+# Large Files (Version Separately)
+# ============================================================
+
+# Large waveform files (version separately or use Git LFS)
+*.wdb
+*.fsdb
+*.vpd
+*.vcd
+
+# Large library files
+*.db
+*.lib
+
+# PDK files (too large, managed separately)
+pdk/
+skywater-pdk/
+
+# Cache files
+*.cache
+.cache/
+
+# ============================================================
+# Credentials & Secrets
+# ============================================================
+
+# Never commit credentials
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+.ssh/
+credentials.json
+
+# ============================================================
+# Backup & Archive Files
+# ============================================================
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+# ============================================================
+# Uncomment as needed for your workflow
+# ============================================================
+
+visualization/
+# If you want to ignore all synthesis results:
+# /synthesis_results/
+# /implementation/
+
+# If you want to ignore all wave files:
+# *.vcd
+# *.fsdb
+# *.gtkw
+
+# If you want to ignore all simulation results:
+# /sim_results/
+# /cosim/obj_dir/
+
+# If using version control for large binaries (Git LFS):
+# *.gds filter=lfs diff=lfs merge=lfs -text
+# *.fsdb filter=lfs diff=lfs merge=lfs -text
+# *.wdb filter=lfs diff=lfs merge=lfs -text

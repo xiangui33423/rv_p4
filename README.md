@@ -540,13 +540,22 @@ C 固件直接驱动 SystemVerilog RTL，验证端到端正确性，支持硬件
 
 ## 文档导航
 
+完整的文档已按照用途分类整理在 [`docs/`](docs/) 目录中。
+
 | 文档 | 内容 |
 |------|------|
 | [README.md](README.md) | **本文档** - 项目入门、编译与测试 |
-| [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) | 可视化架构与设计概览 |
-| [architecture.md](architecture.md) | 详细架构规格与接口定义 |
-| [design_spec.md](design_spec.md) | 硬件细节规格说明 |
-| [FILES.md](FILES.md) | 完整文件索引与描述 |
+| [**docs/README.md**](docs/README.md) | 📚 **文档中心** - 所有文档导航与索引 |
+| [docs/01-project/](docs/01-project/) | 📖 项目概览 |
+| [docs/02-architecture/](docs/02-architecture/) | 🏗️ 架构设计文档 |
+| [docs/03-asic-flow/](docs/03-asic-flow/) | ⚙️ ASIC 工具链与自动化 |
+| [docs/04-visualization/](docs/04-visualization/) | 🎨 可视化与演示报告 |
+| [docs/05-reference/](docs/05-reference/) | 📁 参考资料与文件索引 |
+
+快速链接：
+- [`docs/01-project/PROJECT_OVERVIEW.md`](docs/01-project/PROJECT_OVERVIEW.md) — 项目整体概览
+- [`docs/02-architecture/architecture.md`](docs/02-architecture/architecture.md) — 系统架构
+- [`docs/03-asic-flow/GDS_II_QUICK_START.md`](docs/03-asic-flow/GDS_II_QUICK_START.md) — 快速上手
 
 ---
 

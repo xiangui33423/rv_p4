@@ -1,0 +1,375 @@
+# RV-P4 ASIC Design Flow Makefile
+# Complete GDS-II generation using OpenROAD + Sky130
+# Usage: make -f Makefile.asic [target]
+
+.PHONY: help all synth place route sta power drc lvs gds clean
+
+# ============================================================
+# Configuration
+# ============================================================
+
+PROJECT_NAME := rv_p4
+PDK := sky130
+PROCESS_NODE := 130nm
+TECH_LEF := $(PDK_ROOT)/$(PDK)/libs.ref/$(PDK)_$(VARIANT)/lef/$(PDK).lef
+SC_LEF := $(PDK_ROOT)/$(PDK)/libs.ref/sky130_$(VARIANT)/lef/sky130_$(VARIANT).lef
+SC_LIB := $(PDK_ROOT)/$(PDK)/libs.ref/sky130_$(VARIANT)/lib/sky130_$(VARIANT)__*.lib
+
+# Directories
+SRC_DIR := rtl
+SYN_DIR := synthesis_results
+IMP_DIR := implementation
+PDK_ROOT ?= $(HOME)/pdk
+
+# Output directories
+SYN_OUT := $(IMP_DIR)/synthesis
+PNR_OUT := $(IMP_DIR)/place_route
+STA_OUT := $(IMP_DIR)/sta
+PWR_OUT := $(IMP_DIR)/power
+DRC_OUT := $(IMP_DIR)/drc
+GDS_OUT := $(IMP_DIR)/gds
+
+# Tool paths
+YOSYS := yosys
+OPENROAD := openroad
+OPENSTA := opensta
+MAGIC := magic
+NETGEN := netgen
+PYTHON3 := python3
+
+# Design parameters (extracted from design spec)
+CLOCK_PERIOD := 0.625  # ns (1.6 GHz)
+CLOCK_PORT := clk_dp
+RESET_PORT := rst_n
+TOP_MODULE := rv_p4_top
+
+# ============================================================
+# Default target
+# ============================================================
+
+help:
+	@echo "RV-P4 ASIC GDS-II Flow"
+	@echo ""
+	@echo "Targets:"
+	@echo "  make -f Makefile.asic synth        - Run logic synthesis (Yosys)"
+	@echo "  make -f Makefile.asic place        - Run placement (OpenROAD)"
+	@echo "  make -f Makefile.asic route        - Run routing (OpenROAD)"
+	@echo "  make -f Makefile.asic sta          - Run static timing analysis"
+	@echo "  make -f Makefile.asic power        - Run power analysis"
+	@echo "  make -f Makefile.asic drc          - Run DRC checks"
+	@echo "  make -f Makefile.asic lvs          - Run LVS checks"
+	@echo "  make -f Makefile.asic gds          - Generate GDS-II (final)"
+	@echo "  make -f Makefile.asic all          - Run complete flow (synth->P&R->DRC->GDS)"
+	@echo "  make -f Makefile.asic clean        - Remove all output files"
+	@echo ""
+	@echo "Variables:"
+	@echo "  PDK_ROOT=<path>                    - Path to PDK (default: ~/pdk)"
+	@echo "  CLOCK_PERIOD=<value>               - Clock period in ns (default: 0.625)"
+	@echo ""
+
+all: synth place route sta drc gds
+	@echo "✓ Complete flow finished!"
+	@echo "  GDS output: $(GDS_OUT)/$(PROJECT_NAME).gds"
+
+# ============================================================
+# Setup & Preparation
+# ============================================================
+
+.PHONY: setup check-pdk
+setup: check-pdk
+	@echo "Setting up design environment..."
+	mkdir -p $(SYN_OUT) $(PNR_OUT) $(STA_OUT) $(PWR_OUT) $(DRC_OUT) $(GDS_OUT)
+	@echo "✓ Directories created"
+
+check-pdk:
+	@if [ ! -d "$(PDK_ROOT)" ]; then \
+		echo "Error: PDK_ROOT not found at $(PDK_ROOT)"; \
+		echo "Run: ./scripts/setup_pdk.sh"; \
+		exit 1; \
+	fi
+	@echo "✓ PDK found at $(PDK_ROOT)"
+
+# ============================================================
+# Stage 1: Logic Synthesis
+# ============================================================
+
+.PHONY: synth synth-rtl synth-opt synth-stat
+
+synth: setup synth-rtl synth-opt synth-stat
+	@echo "✓ Synthesis complete"
+	@echo "  Netlist: $(SYN_OUT)/$(PROJECT_NAME).v"
+	@echo "  JSON: $(SYN_OUT)/$(PROJECT_NAME).json"
+
+synth-rtl:
+	@echo "[1/3] Elaboration and RTL analysis..."
+	$(YOSYS) -p "$(SYNTH_RTL_SCRIPT)" 2>&1 | tee $(SYN_OUT)/01_elaborate.log
+
+synth-opt:
+	@echo "[2/3] Logic synthesis and optimization..."
+	$(YOSYS) -p "$(SYNTH_OPT_SCRIPT)" 2>&1 | tee $(SYN_OUT)/02_synthesis.log
+
+synth-stat:
+	@echo "[3/3] Post-synthesis statistics..."
+	@$(PYTHON3) scripts/gen_synth_report.py $(SYN_OUT) 2>&1 | tee $(SYN_OUT)/synthesis_report.txt
+
+define SYNTH_RTL_SCRIPT
+read_verilog -sv $(SRC_DIR)/include/rv_p4_pkg.sv; \
+read_verilog -sv $(SRC_DIR)/include/rv_p4_if.sv; \
+read_verilog -sv $(SRC_DIR)/parser/parser_tcam.sv; \
+read_verilog -sv $(SRC_DIR)/parser/p4_parser.sv; \
+read_verilog -sv $(SRC_DIR)/deparser/deparser.sv; \
+read_verilog -sv $(SRC_DIR)/mau/mau_alu.sv; \
+read_verilog -sv $(SRC_DIR)/mau/mau_hash.sv; \
+read_verilog -sv $(SRC_DIR)/mau/mau_tcam.sv; \
+read_verilog -sv $(SRC_DIR)/mau/mau_stage.sv; \
+read_verilog -sv $(SRC_DIR)/tue/tue.sv; \
+read_verilog -sv $(SRC_DIR)/tm/traffic_manager.sv; \
+read_verilog -sv $(SRC_DIR)/pkt_buffer/pkt_buffer.sv; \
+read_verilog -sv $(SRC_DIR)/ctrl/ctrl_plane.sv; \
+read_verilog -sv $(SRC_DIR)/top/mac_rx_arb.sv; \
+read_verilog -sv $(SRC_DIR)/top/ctrl_plane.sv; \
+read_verilog -sv $(SRC_DIR)/top/rst_sync.sv; \
+read_verilog -sv $(SRC_DIR)/top/rv_p4_top.sv; \
+hierarchy -top $(TOP_MODULE); \
+stat -width; \
+write_json -indent 2 $(SYN_OUT)/01_elaborate.json
+endef
+
+define SYNTH_OPT_SCRIPT
+read_verilog -sv $(SRC_DIR)/include/rv_p4_pkg.sv; \
+read_verilog -sv $(SRC_DIR)/include/rv_p4_if.sv; \
+read_verilog -sv $(SRC_DIR)/parser/parser_tcam.sv; \
+read_verilog -sv $(SRC_DIR)/parser/p4_parser.sv; \
+read_verilog -sv $(SRC_DIR)/deparser/deparser.sv; \
+read_verilog -sv $(SRC_DIR)/mau/mau_alu.sv; \
+read_verilog -sv $(SRC_DIR)/mau/mau_hash.sv; \
+read_verilog -sv $(SRC_DIR)/mau/mau_tcam.sv; \
+read_verilog -sv $(SRC_DIR)/mau/mau_stage.sv; \
+read_verilog -sv $(SRC_DIR)/tue/tue.sv; \
+read_verilog -sv $(SRC_DIR)/tm/traffic_manager.sv; \
+read_verilog -sv $(SRC_DIR)/pkt_buffer/pkt_buffer.sv; \
+read_verilog -sv $(SRC_DIR)/ctrl/ctrl_plane.sv; \
+read_verilog -sv $(SRC_DIR)/top/mac_rx_arb.sv; \
+read_verilog -sv $(SRC_DIR)/top/ctrl_plane.sv; \
+read_verilog -sv $(SRC_DIR)/top/rst_sync.sv; \
+read_verilog -sv $(SRC_DIR)/top/rv_p4_top.sv; \
+hierarchy -top $(TOP_MODULE); \
+flatten; \
+opt -full -undriven -mux_undef; \
+fsm; \
+opt -fast; \
+memory -nomap; \
+opt -full; \
+techmap -map +/cmp2lut.v; \
+opt -full -fast; \
+stat -width; \
+write_verilog -attr2comment $(SYN_OUT)/$(PROJECT_NAME).v; \
+write_json -indent 2 $(SYN_OUT)/$(PROJECT_NAME).json
+endef
+
+export SYNTH_RTL_SCRIPT
+export SYNTH_OPT_SCRIPT
+
+# ============================================================
+# Stage 2: Place & Route
+# ============================================================
+
+.PHONY: place route pnr
+
+pnr: place route
+	@echo "✓ Place & Route complete"
+
+place: synth
+	@echo "[1/2] Floorplanning and placement..."
+	@$(PYTHON3) scripts/run_openroad_place.py \
+		--netlist $(SYN_OUT)/$(PROJECT_NAME).v \
+		--output $(PNR_OUT) \
+		--process $(PROCESS_NODE) \
+		--clock-period $(CLOCK_PERIOD) \
+		2>&1 | tee $(PNR_OUT)/placement.log
+	@echo "✓ Placement complete"
+
+route: place
+	@echo "[2/2] Routing..."
+	@$(PYTHON3) scripts/run_openroad_route.py \
+		--placed-def $(PNR_OUT)/$(PROJECT_NAME)_placed.def \
+		--output $(PNR_OUT) \
+		--process $(PROCESS_NODE) \
+		2>&1 | tee $(PNR_OUT)/routing.log
+	@echo "✓ Routing complete"
+
+# ============================================================
+# Stage 3: Sign-Off Analysis
+# ============================================================
+
+.PHONY: sta power
+
+sta: route
+	@echo "[3/3] Static Timing Analysis..."
+	@$(PYTHON3) scripts/run_opensta.py \
+		--sdc scripts/rv_p4.sdc \
+		--netlist $(SYN_OUT)/$(PROJECT_NAME).v \
+		--spef $(PNR_OUT)/$(PROJECT_NAME)_routed.spef \
+		--output $(STA_OUT) \
+		--process $(PROCESS_NODE) \
+		2>&1 | tee $(STA_OUT)/timing_report.log
+	@echo "✓ STA complete - check $(STA_OUT)/timing_summary.txt"
+
+power: sta
+	@echo "Power Analysis..."
+	@$(PYTHON3) scripts/run_power_analysis.py \
+		--saif $(STA_OUT)/switching_activity.saif \
+		--output $(PWR_OUT) \
+		--process $(PROCESS_NODE) \
+		2>&1 | tee $(PWR_OUT)/power_report.log
+	@echo "✓ Power analysis complete - check $(PWR_OUT)/power_summary.txt"
+
+# ============================================================
+# Stage 4: Verification (DRC/LVS)
+# ============================================================
+
+.PHONY: drc lvs verify
+
+verify: drc lvs
+	@echo "✓ DRC and LVS verification complete"
+
+drc: route
+	@echo "Design Rule Checking..."
+	@$(PYTHON3) scripts/run_drc.py \
+		--gds $(PNR_OUT)/$(PROJECT_NAME)_routed.gds \
+		--output $(DRC_OUT) \
+		--process $(PROCESS_NODE) \
+		2>&1 | tee $(DRC_OUT)/drc_report.txt
+	@if grep -q "Error\|FAIL" $(DRC_OUT)/drc_report.txt; then \
+		echo "✗ DRC violations found!"; \
+	else \
+		echo "✓ DRC passed"; \
+	fi
+
+lvs: drc
+	@echo "Layout vs Schematic verification..."
+	@$(PYTHON3) scripts/run_lvs.py \
+		--gds $(PNR_OUT)/$(PROJECT_NAME)_routed.gds \
+		--netlist $(SYN_OUT)/$(PROJECT_NAME).v \
+		--output $(DRC_OUT) \
+		--process $(PROCESS_NODE) \
+		2>&1 | tee $(DRC_OUT)/lvs_report.txt
+	@if grep -q "Match\|PASS" $(DRC_OUT)/lvs_report.txt; then \
+		echo "✓ LVS passed"; \
+	else \
+		echo "✗ LVS violations found!"; \
+	fi
+
+# ============================================================
+# Stage 5: Final GDS-II Generation
+# ============================================================
+
+.PHONY: gds stream
+
+gds: verify
+	@echo "Generating final GDS-II..."
+	@$(PYTHON3) scripts/gen_gds.py \
+		--routed-def $(PNR_OUT)/$(PROJECT_NAME)_routed.def \
+		--output $(GDS_OUT)/$(PROJECT_NAME).gds \
+		--process $(PROCESS_NODE) \
+		2>&1 | tee $(GDS_OUT)/gds_generation.log
+	@if [ -f $(GDS_OUT)/$(PROJECT_NAME).gds ]; then \
+		ls -lh $(GDS_OUT)/$(PROJECT_NAME).gds; \
+		echo "✓ GDS-II generated successfully!"; \
+	else \
+		echo "✗ GDS generation failed"; \
+		exit 1; \
+	fi
+
+stream: gds
+	@echo "Generating STREAM format..."
+	@$(MAGIC) -nw -noconsole -notech << 'EOF'
+	load $(GDS_OUT)/$(PROJECT_NAME).gds
+	save $(GDS_OUT)/$(PROJECT_NAME).stream
+	quit
+EOF
+	@echo "✓ STREAM file generated"
+
+# ============================================================
+# Reporting and Analysis
+# ============================================================
+
+.PHONY: report area power-report timing-report
+
+report: synth place route sta
+	@echo ""
+	@echo "========================================"
+	@echo "Design Summary Report"
+	@echo "========================================"
+	@echo "Design: $(PROJECT_NAME)"
+	@echo "Technology: $(PDK) ($(PROCESS_NODE))"
+	@echo "Top Module: $(TOP_MODULE)"
+	@echo "Clock Period: $(CLOCK_PERIOD) ns"
+	@echo ""
+	@echo "--- Synthesis Results ---"
+	@if [ -f $(SYN_OUT)/synthesis_report.txt ]; then \
+		head -20 $(SYN_OUT)/synthesis_report.txt; \
+	fi
+	@echo ""
+	@echo "--- Placement Results ---"
+	@if [ -f $(PNR_OUT)/placement.log ]; then \
+		grep -i "area\|utilization\|cell" $(PNR_OUT)/placement.log | head -5; \
+	fi
+	@echo ""
+	@echo "--- Timing Results ---"
+	@if [ -f $(STA_OUT)/timing_summary.txt ]; then \
+		cat $(STA_OUT)/timing_summary.txt; \
+	fi
+	@echo ""
+
+area:
+	@echo "Area Breakdown:"
+	@if [ -f $(PNR_OUT)/placement.log ]; then \
+		grep -E "Total.*Area|Core.*Area|Die.*Area" $(PNR_OUT)/placement.log; \
+	fi
+
+power-report:
+	@echo "Power Summary:"
+	@if [ -f $(PWR_OUT)/power_summary.txt ]; then \
+		cat $(PWR_OUT)/power_summary.txt; \
+	fi
+
+timing-report:
+	@echo "Timing Summary:"
+	@if [ -f $(STA_OUT)/timing_summary.txt ]; then \
+		cat $(STA_OUT)/timing_summary.txt; \
+	fi
+
+# ============================================================
+# Cleanup
+# ============================================================
+
+clean:
+	@echo "Cleaning up..."
+	rm -rf $(IMP_DIR)
+	@echo "✓ Cleaned"
+
+clean-all: clean
+	rm -rf $(SYN_DIR)
+
+.PHONY: show-dirs
+show-dirs:
+	@echo "Project structure:"
+	@echo "  Source files: $(SRC_DIR)/"
+	@echo "  Synthesis:    $(SYN_OUT)/"
+	@echo "  Place&Route:  $(PNR_OUT)/"
+	@echo "  Analysis:     $(STA_OUT)/, $(PWR_OUT)/"
+	@echo "  DRC/LVS:      $(DRC_OUT)/"
+	@echo "  Final GDS:    $(GDS_OUT)/"
+	@tree -L 2 -I 'obj_dir' 2>/dev/null || find . -maxdepth 2 -type d
+
+# ============================================================
+# Meta targets
+# ============================================================
+
+.PHONY: quick-flow full-flow
+quick-flow: synth place route
+	@echo "Quick flow completed (synth -> place -> route)"
+
+full-flow: all
+	@echo "Full design flow completed!"
