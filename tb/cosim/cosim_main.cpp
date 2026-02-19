@@ -665,6 +665,272 @@ static void test_rtl_acl_deny() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CS-RTL-4: route_del — TCAM DELETE 传播到 RTL，条目被清除
+//
+// Phase A: 安装路由 10.20.0.0/16 → port 2，注入报文到 10.20.1.5，验证 TX on port 2
+// Phase B: 调用 route_del，再次注入相同报文，验证 TX NOT on port 2
+//          （无路由命中 → meta.eg_port 保持默认值 0 → TX on port 0）
+//
+// 验证：hal_tcam_delete → TUE CMD=DELETE → mau_tcam valid 位清零
+// ─────────────────────────────────────────────────────────────────────────────
+
+static void test_rtl_route_delete() {
+    const char *name = "CS-RTL-4 : route_del → TCAM entry cleared, default fwd";
+    TEST_BEGIN(name);
+
+    do_reset();
+    route_init();
+
+    // Parser: IPv4 DST (bytes 30-33) → PHV[0:3]，与 CS-RTL-1 相同
+    for (int i = 0; i < 4; i++) {
+        uint32_t e[20];
+        uint8_t  ns = (i == 3) ? 0x3F : (uint8_t)(i + 2);
+        make_parser_entry(e, (uint8_t)(i + 1), ns, (uint8_t)(30 + i), (uint16_t)i);
+        write_parser_entry((uint8_t)i, e);
+    }
+
+    static const uint8_t eth_dst4[6] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
+    static const uint8_t eth_src4[6] = {0x00,0x11,0x22,0x33,0x44,0x55};
+    uint8_t pkt4[64] = {};
+    int len4 = build_ipv4_pkt(pkt4, eth_dst4, eth_src4,
+                               0x01020304u,   // src = 1.2.3.4
+                               0x0A140105u,   // dst = 10.20.1.5
+                               0, 0);
+
+    // Phase A: 路由在线 → 期望 TX on port 2
+    int rc = route_add(0x0A140000u, 16, 2, 0xAABBCCDDEEFFULL);
+    if (rc != 0) { TEST_FAIL(name, "route_add returned %d", rc); return; }
+
+    inject_pkt(pkt4, len4);
+    uint32_t tv = poll_tx(2000);
+    if (!(tv & (1U << 2))) {
+        TEST_FAIL(name, "Phase A: expected TX on port 2, got mask=0x%08X", tv);
+        return;
+    }
+
+    // Phase B: 删除路由 → 期望 TX NOT on port 2（报文送往 port 0，默认 eg_port=0）
+    rc = route_del(0x0A140000u, 16);
+    if (rc != 0) { TEST_FAIL(name, "route_del returned %d", rc); return; }
+
+    inject_pkt(pkt4, len4);
+    tv = poll_tx(2000);
+    if (tv & (1U << 2))
+        TEST_FAIL(name, "Phase B: TX still on port 2 after delete (mask=0x%08X)", tv);
+    else
+        TEST_PASS(name);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CS-RTL-5: 两条 FDB 条目 → 按 dst MAC 精确分流到不同端口
+//
+// Parser: 提取 ETH DST (bytes 0-5) → PHV[0:5]（与 CS-RTL-2 相同）
+// 安装: MAC-A (AA:BB:CC:DD:EE:01) → port 5
+//       MAC-B (AA:BB:CC:DD:EE:02) → port 11
+// 验证: 两张 TCAM 条目共存时，各自只命中自己对应的 MAC
+// ─────────────────────────────────────────────────────────────────────────────
+
+static void test_rtl_fdb_two_entries() {
+    const char *name = "CS-RTL-5 : two FDB entries → disambiguate by dst MAC";
+    TEST_BEGIN(name);
+
+    do_reset();
+    fdb_init();
+
+    // Parser: ETH DST bytes 0-5 → PHV[0:5]
+    for (int i = 0; i < 6; i++) {
+        uint32_t e[20];
+        uint8_t  ns = (i == 5) ? 0x3F : (uint8_t)(i + 2);
+        make_parser_entry(e, (uint8_t)(i + 1), ns, (uint8_t)i, (uint16_t)i);
+        write_parser_entry((uint8_t)i, e);
+    }
+
+    static const uint8_t mac_a[6]   = {0xAA,0xBB,0xCC,0xDD,0xEE,0x01};
+    static const uint8_t mac_b[6]   = {0xAA,0xBB,0xCC,0xDD,0xEE,0x02};
+    static const uint8_t src_mac5[6] = {0x11,0x22,0x33,0x44,0x55,0x66};
+
+    if (fdb_add_static(0xAABBCCDDEE01ULL, 5,  0) != 0) {
+        TEST_FAIL(name, "fdb_add_static MAC-A failed"); return;
+    }
+    if (fdb_add_static(0xAABBCCDDEE02ULL, 11, 0) != 0) {
+        TEST_FAIL(name, "fdb_add_static MAC-B failed"); return;
+    }
+
+    // 发送到 MAC-A → 期望 TX on port 5
+    uint8_t pkt5[18] = {};
+    int len5 = build_l2_pkt(pkt5, mac_a, src_mac5, 0x9000);
+    inject_pkt(pkt5, len5);
+    uint32_t tv = poll_tx(2000);
+    if (!(tv & (1U << 5))) {
+        TEST_FAIL(name, "MAC-A: expected TX on port 5, got mask=0x%08X", tv);
+        return;
+    }
+
+    // 发送到 MAC-B → 期望 TX on port 11
+    len5 = build_l2_pkt(pkt5, mac_b, src_mac5, 0x9000);
+    inject_pkt(pkt5, len5);
+    tv = poll_tx(2000);
+    if (tv & (1U << 11))
+        TEST_PASS(name);
+    else if (tv)
+        TEST_FAIL(name, "MAC-B: expected TX on port 11, got mask=0x%08X", tv);
+    else
+        TEST_FAIL(name, "MAC-B: timeout — no TX");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CS-RTL-6: ACL deny + dport 过滤 — src_ip + dst_port 组合匹配
+//
+// Parser:
+//   states 1-4: IPv4 SRC (bytes 26-29) → PHV[0:3]
+//   states 5-6: TCP dport (bytes 36-37) → PHV[8:9]
+//   (dst_ip PHV[4:7] 未填，默认 0；TCAM mask 该范围为 don't care → 不影响)
+//
+// 安装: acl_add_deny(172.16.0.0/16, 0, 0, dport=80) → 拒绝 src∈172.16.x.x 且 dport=80
+//
+// Case A: src=172.16.1.1, dport=80  → 两字段均命中 → DROP → no TX
+// Case B: src=172.16.1.1, dport=443 → dport 不匹配 → PASS → TX on port 0
+// Case C: src=10.0.0.1,   dport=80  → src 不匹配   → PASS → TX on port 0
+//
+// 验证: ACL 多字段 key，dport 精确匹配与 src prefix 掩码联合工作
+// ─────────────────────────────────────────────────────────────────────────────
+
+static void test_rtl_acl_dport() {
+    const char *name = "CS-RTL-6 : ACL deny src+dport filter";
+    TEST_BEGIN(name);
+
+    do_reset();
+    acl_init();
+
+    // Parser: src_ip bytes 26-29 → PHV[0:3]，dport bytes 36-37 → PHV[8:9]
+    // 注意 extract_offset 可以非连续（跳过 bytes 30-35 的 dst_ip + sport）
+    const uint8_t pkt_offsets[6] = {26, 27, 28, 29, 36, 37};
+    const uint8_t phv_dsts6[6]   = { 0,  1,  2,  3,  8,  9};
+    for (int i = 0; i < 6; i++) {
+        uint32_t e[20];
+        uint8_t  ns = (i == 5) ? 0x3F : (uint8_t)(i + 2);
+        make_parser_entry(e, (uint8_t)(i + 1), ns, pkt_offsets[i], phv_dsts6[i]);
+        write_parser_entry((uint8_t)i, e);
+    }
+
+    // 安装 deny 规则：src 172.16.0.0/16，任意 dst，dport=80
+    int rid = acl_add_deny(0xAC100000u, 0xFFFF0000u, 0, 0, 80);
+    if (rid < 0) { TEST_FAIL(name, "acl_add_deny returned %d", rid); return; }
+
+    static const uint8_t eth_d6[6] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
+    static const uint8_t eth_s6[6] = {0x00,0xAA,0xBB,0xCC,0xDD,0xEE};
+    uint8_t pkt6[64] = {};
+    int len6;
+    uint32_t tv;
+
+    // Case A: src=172.16.1.1, dport=80 → deny 命中 → no TX
+    len6 = build_ipv4_pkt(pkt6, eth_d6, eth_s6, 0xAC100101u, 0xC0A80001u, 6, 80);
+    inject_pkt(pkt6, len6);
+    tv = poll_tx(1000);
+    if (tv != 0) {
+        TEST_FAIL(name, "Case A: expected no TX (deny), got mask=0x%08X", tv);
+        return;
+    }
+
+    // Case B: src=172.16.1.1, dport=443 → dport 不匹配 → ACL miss → TX
+    len6 = build_ipv4_pkt(pkt6, eth_d6, eth_s6, 0xAC100101u, 0xC0A80001u, 6, 443);
+    inject_pkt(pkt6, len6);
+    tv = poll_tx(2000);
+    if (tv == 0) {
+        TEST_FAIL(name, "Case B: expected TX (dport mismatch → pass), got no TX");
+        return;
+    }
+
+    // Case C: src=10.0.0.1, dport=80 → src 不匹配 → ACL miss → TX
+    len6 = build_ipv4_pkt(pkt6, eth_d6, eth_s6, 0x0A000001u, 0xC0A80001u, 6, 80);
+    inject_pkt(pkt6, len6);
+    tv = poll_tx(2000);
+    if (tv != 0)
+        TEST_PASS(name);
+    else
+        TEST_FAIL(name, "Case C: expected TX (src mismatch → pass), got no TX");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CS-RTL-7: Route (stage 0) + ACL (stage 1) 跨 Stage 协同
+//           ACL drop 覆盖路由转发决策
+//
+// Parser: IPv4 DST (bytes 30-33) → PHV[0:3]
+// 由于 route.c 和 acl.c 都把 key.bytes[0:3] 映射到 PHV[0:3]，
+// 且 parser 将 IPv4 DST 放在 PHV[0:3]，两个 stage 实际上都在匹配 IPv4 DST。
+//
+// Stage 0: route_add(10.10.0.0/16 → port 3)，route_add(10.20.0.0/16 → port 5)
+// Stage 1: acl_add_deny("src" 10.10.0.0/16) — 实为匹配 IPv4 DST=10.10.x.x
+//
+// Case A: dst=10.10.5.99
+//   Stage 0 HIT → eg_port=3；Stage 1 HIT (dst 匹配 10.10.x.x) → drop=1
+//   → TM 丢弃报文 → no TX（即使路由命中，drop 优先）
+//
+// Case B: dst=10.20.1.1
+//   Stage 0 HIT → eg_port=5；Stage 1 MISS (dst 10.20.x.x ≠ 10.10.x.x)
+//   → 正常转发 → TX on port 5
+//
+// 验证: 多 Stage 流水线中，后级 drop=1 覆盖前级端口决策；
+//       TM 在 meta.drop=1 时正确丢弃报文
+// ─────────────────────────────────────────────────────────────────────────────
+
+static void test_rtl_route_acl_coexist() {
+    const char *name = "CS-RTL-7 : route+ACL coexist — stage-1 drop overrides stage-0 port";
+    TEST_BEGIN(name);
+
+    do_reset();
+    route_init();
+    acl_init();
+
+    // Parser: IPv4 DST bytes 30-33 → PHV[0:3]
+    for (int i = 0; i < 4; i++) {
+        uint32_t e[20];
+        uint8_t  ns = (i == 3) ? 0x3F : (uint8_t)(i + 2);
+        make_parser_entry(e, (uint8_t)(i + 1), ns, (uint8_t)(30 + i), (uint16_t)i);
+        write_parser_entry((uint8_t)i, e);
+    }
+
+    // Stage 0: 两条路由
+    if (route_add(0x0A0A0000u, 16, 3, 0xAABBCCDDEEFFULL) != 0) {
+        TEST_FAIL(name, "route_add 10.10.0.0/16 failed"); return;
+    }
+    if (route_add(0x0A140000u, 16, 5, 0xAABBCCDDEEFFULL) != 0) {
+        TEST_FAIL(name, "route_add 10.20.0.0/16 failed"); return;
+    }
+
+    // Stage 1: ACL deny key[0:3]=10.10.0.0/16（因 parser 将 IPv4 DST → PHV[0:3]，
+    //          此规则实为拒绝 dst∈10.10.x.x 的报文）
+    if (acl_add_deny(0x0A0A0000u, 0xFFFF0000u, 0, 0, 0) < 0) {
+        TEST_FAIL(name, "acl_add_deny failed"); return;
+    }
+
+    static const uint8_t eth_d7[6] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
+    static const uint8_t eth_s7[6] = {0x00,0x11,0x22,0x33,0x44,0x55};
+    uint8_t pkt7[64] = {};
+    int len7;
+    uint32_t tv;
+
+    // Case A: dst=10.10.5.99 → stage 0 命中(port 3) + stage 1 命中(drop) → no TX
+    len7 = build_ipv4_pkt(pkt7, eth_d7, eth_s7, 0x01020304u, 0x0A0A0563u, 0, 0);
+    inject_pkt(pkt7, len7);
+    tv = poll_tx(1000);
+    if (tv != 0) {
+        TEST_FAIL(name, "Case A: expected no TX (stage-1 drop), got mask=0x%08X", tv);
+        return;
+    }
+
+    // Case B: dst=10.20.1.1 → stage 0 命中(port 5), stage 1 未命中 → TX on port 5
+    len7 = build_ipv4_pkt(pkt7, eth_d7, eth_s7, 0x01020304u, 0x0A140101u, 0, 0);
+    inject_pkt(pkt7, len7);
+    tv = poll_tx(2000);
+    if (tv & (1U << 5))
+        TEST_PASS(name);
+    else if (tv)
+        TEST_FAIL(name, "Case B: expected TX on port 5, got mask=0x%08X", tv);
+    else
+        TEST_FAIL(name, "Case B: timeout — no TX (expected port 5)");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // main
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -689,11 +955,15 @@ int main(int argc, char **argv) {
     g_top->rst_n    = 0;
     g_top->eval();
 
-    printf("[ SUITE ] RTL Data-Plane Co-Simulation (3 cases)\n\n");
+    printf("[ SUITE ] RTL Data-Plane Co-Simulation (7 cases)\n\n");
 
     test_rtl_route_forward();
     test_rtl_fdb_forward();
     test_rtl_acl_deny();
+    test_rtl_route_delete();
+    test_rtl_fdb_two_entries();
+    test_rtl_acl_dport();
+    test_rtl_route_acl_coexist();
 
     // Summary
     int total = g_pass + g_fail;
