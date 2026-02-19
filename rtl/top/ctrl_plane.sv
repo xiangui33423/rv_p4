@@ -28,7 +28,16 @@ module ctrl_plane
     input  logic tck,
     input  logic tms,
     input  logic tdi,
-    output logic tdo
+    output logic tdo,
+
+    // Co-simulation backdoor: TUE APB override for apb[2] (tie to 0 in production)
+    input  logic [11:0] tb_tue_paddr,
+    input  logic [31:0] tb_tue_pwdata,
+    input  logic        tb_tue_psel,
+    input  logic        tb_tue_penable,
+    input  logic        tb_tue_pwrite,
+    output logic [31:0] tb_tue_prdata,
+    output logic        tb_tue_pready
 );
 
     // Tie all outputs to 0
@@ -39,13 +48,25 @@ module ctrl_plane
     assign tue_req.valid = 1'b0;
     assign tue_req.req   = '0;
 
+    // APB slot 2 driven from cosim TUE backdoor
+    assign apb[2].psel    = tb_tue_psel;
+    assign apb[2].penable = tb_tue_penable;
+    assign apb[2].pwrite  = tb_tue_pwrite;
+    assign apb[2].paddr   = tb_tue_paddr;
+    assign apb[2].pwdata  = tb_tue_pwdata;
+    assign tb_tue_prdata  = apb[2].prdata;
+    assign tb_tue_pready  = apb[2].pready;
+
+    // All other APB slots tied to 0
     generate
         for (genvar i = 0; i < 16; i++) begin : gen_apb
-            assign apb[i].psel    = 1'b0;
-            assign apb[i].penable = 1'b0;
-            assign apb[i].pwrite  = 1'b0;
-            assign apb[i].paddr   = '0;
-            assign apb[i].pwdata  = '0;
+            if (i != 2) begin : gen_other
+                assign apb[i].psel    = 1'b0;
+                assign apb[i].penable = 1'b0;
+                assign apb[i].pwrite  = 1'b0;
+                assign apb[i].paddr   = '0;
+                assign apb[i].pwdata  = '0;
+            end
         end
     endgenerate
 

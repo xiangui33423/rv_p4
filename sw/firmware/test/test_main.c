@@ -65,6 +65,15 @@ void test_sys_arp_delete_fdb_cleanup(void);
 void test_sys_multimodule_coexist(void);
 void test_sys_cli_sequence(void);
 
+/* 数据面 + 控制面联合测试 (Co-Simulation) */
+void test_dp_cosim_route_forward(void);
+void test_dp_cosim_acl_deny(void);
+void test_dp_cosim_fdb_forward(void);
+void test_dp_cosim_arp_punt(void);
+void test_dp_cosim_dscp_qos(void);
+void test_dp_cosim_vlan_ingress(void);
+void test_dp_cosim_full_pipeline(void);
+
 // ─────────────────────────────────────────────
 // main
 // ─────────────────────────────────────────────
@@ -130,6 +139,16 @@ int main(void) {
     test_sys_arp_delete_fdb_cleanup();   /* 已知缺陷：预期 FAIL */
     test_sys_multimodule_coexist();
     test_sys_cli_sequence();
+
+    // ── 数据面 + 控制面联合测试 ──────────────
+    TEST_SUITE("Data-Plane Co-Sim (7 cases)");
+    test_dp_cosim_route_forward();
+    test_dp_cosim_acl_deny();
+    test_dp_cosim_fdb_forward();
+    test_dp_cosim_arp_punt();
+    test_dp_cosim_dscp_qos();
+    test_dp_cosim_vlan_ingress();
+    test_dp_cosim_full_pipeline();
 
     // ── 汇总 ─────────────────────────────────
     int total = g_pass + g_fail;

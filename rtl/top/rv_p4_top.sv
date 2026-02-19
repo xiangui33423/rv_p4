@@ -45,7 +45,16 @@ module rv_p4_top
     // Test backdoor: parser TCAM direct write (tie to 0 in production)
     input  logic                          tb_parser_wr_en,
     input  logic [7:0]                    tb_parser_wr_addr,
-    input  logic [PARSER_TCAM_WIDTH-1:0]  tb_parser_wr_data
+    input  logic [PARSER_TCAM_WIDTH-1:0]  tb_parser_wr_data,
+
+    // Test backdoor: TUE APB direct access (tie to 0 in production)
+    input  logic [11:0] tb_tue_paddr,
+    input  logic [31:0] tb_tue_pwdata,
+    input  logic        tb_tue_psel,
+    input  logic        tb_tue_penable,
+    input  logic        tb_tue_pwrite,
+    output logic [31:0] tb_tue_prdata,
+    output logic        tb_tue_pready
 );
 
 // ─────────────────────────────────────────────
@@ -271,7 +280,14 @@ ctrl_plane u_ctrl (
     .pcie_tx_valid(pcie_tx_valid),
     .apb          (apb_bus),
     .tue_req      (tue_req.master),
-    .tck(tck), .tms(tms), .tdi(tdi), .tdo(tdo)
+    .tck(tck), .tms(tms), .tdi(tdi), .tdo(tdo),
+    .tb_tue_paddr   (tb_tue_paddr),
+    .tb_tue_pwdata  (tb_tue_pwdata),
+    .tb_tue_psel    (tb_tue_psel),
+    .tb_tue_penable (tb_tue_penable),
+    .tb_tue_pwrite  (tb_tue_pwrite),
+    .tb_tue_prdata  (tb_tue_prdata),
+    .tb_tue_pready  (tb_tue_pready)
 );
 
 endmodule

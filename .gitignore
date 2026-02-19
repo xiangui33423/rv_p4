@@ -1,2 +1,5 @@
 xs-env/
 obj_dir/
+tb/cosim/obj_dir/
+tb/cosim/cosim_sim
+sw/firmware/test/run_tests

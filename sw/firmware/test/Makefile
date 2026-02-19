@@ -15,8 +15,9 @@ MODULE_SRCS = ../vlan.c   \
               ../acl.c    \
               ../cli_cmds.c
 
-# 模拟 HAL + 测试用例
+# 模拟 HAL + 数据面功能模型 + 测试用例
 TEST_SRCS = sim_hal.c           \
+            pkt_model.c         \
             test_main.c         \
             test_vlan.c         \
             test_arp.c          \
@@ -24,7 +25,8 @@ TEST_SRCS = sim_hal.c           \
             test_route.c        \
             test_acl.c          \
             test_cli.c          \
-            test_integration.c
+            test_integration.c  \
+            test_dp_cosim.c
 
 TARGET = run_tests
 
