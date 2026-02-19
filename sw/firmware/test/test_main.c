@@ -57,6 +57,14 @@ void test_cli_route_del(void);
 void test_cli_acl_deny(void);
 void test_cli_vlan_port(void);
 
+/* Integration / System */
+void test_sys_full_init(void);
+void test_sys_arp_request_flow(void);
+void test_sys_arp_fdb_correlation(void);
+void test_sys_arp_delete_fdb_cleanup(void);
+void test_sys_multimodule_coexist(void);
+void test_sys_cli_sequence(void);
+
 // ─────────────────────────────────────────────
 // main
 // ─────────────────────────────────────────────
@@ -113,6 +121,15 @@ int main(void) {
     test_cli_route_del();
     test_cli_acl_deny();
     test_cli_vlan_port();
+
+    // ── 集成 / 系统测试套件 ──────────────────
+    TEST_SUITE("Integration / System (6 cases)");
+    test_sys_full_init();
+    test_sys_arp_request_flow();
+    test_sys_arp_fdb_correlation();
+    test_sys_arp_delete_fdb_cleanup();   /* 已知缺陷：预期 FAIL */
+    test_sys_multimodule_coexist();
+    test_sys_cli_sequence();
 
     // ── 汇总 ─────────────────────────────────
     int total = g_pass + g_fail;

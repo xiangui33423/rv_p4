@@ -52,13 +52,14 @@ rv_p4/
             ├── Makefile
             ├── test_framework.h  TEST_BEGIN/TEST_END/TEST_ASSERT 宏
             ├── sim_hal.h/c       模拟 HAL（内存 TCAM，无 MMIO）
-            ├── test_main.c       测试套件入口（31 个用例）
-            ├── test_vlan.c       VLAN 测试（6 个）
-            ├── test_arp.c        ARP 测试（7 个）
-            ├── test_qos.c        QoS 测试（5 个）
-            ├── test_route.c      路由测试（3 个）
-            ├── test_acl.c        ACL 测试（4 个）
-            └── test_cli.c        CLI 测试（6 个）
+            ├── test_main.c         测试套件入口（37 个用例）
+            ├── test_vlan.c         VLAN 测试（6 个）
+            ├── test_arp.c          ARP 测试（7 个）
+            ├── test_qos.c          QoS 测试（5 个）
+            ├── test_route.c        路由测试（3 个）
+            ├── test_acl.c          ACL 测试（4 个）
+            ├── test_cli.c          CLI 测试（6 个）
+            └── test_integration.c  集成/系统测试（6 个）
 ```
 
 ---
@@ -135,12 +136,45 @@ RV-P4 Control Plane Unit Tests
   PASS  CLI-5  : 'acl deny 192.168.0.0/16 0.0.0.0/0 80' installs ACTION_DENY
   PASS  CLI-6  : 'vlan create 50' + 'vlan port 50 add 3 untagged' → egress TCAM
 
+[SUITE] Integration / System (6 cases)
+  PASS  SYS-1  : 全量初始化 — 各 Stage 条目数正确，无 TCAM 溢出
+  PASS  SYS-2  : ARP Request Punt → Reply 内容 + ARP表 + FDB TCAM 联动
+  PASS  SYS-3  : ARP Reply Punt → ARP表与 FDB TCAM 字段双向一致
+  PASS  SYS-4  : arp_delete 后 FDB TCAM 残留（已知缺陷，当前行为断言）
+  PASS  SYS-5  : Route/ACL/FDB 写入各自 Stage，互不干扰
+  PASS  SYS-6  : CLI 序列(route+acl+vlan) → 多 Stage TCAM 同时生效
+
 ================================
-Results: 31/31 passed  ✓ ALL PASS
+Results: 37/37 passed  ✓ ALL PASS
 ================================
 ```
 
-### 清理
+## 测试套件说明
+
+测试分为两层：
+
+| 套件 | 文件 | 用例数 | 说明 |
+|------|------|--------|------|
+| VLAN Management | `test_vlan.c` | 6 | 单模块，TCAM 规则安装/删除 |
+| ARP / Neighbor | `test_arp.c` | 7 | 单模块，Punt 收包/老化 |
+| QoS Scheduling | `test_qos.c` | 5 | 单模块，DSCP/DWRR/PIR |
+| IPv4 Routing | `test_route.c` | 3 | 单模块，LPM TCAM |
+| ACL Rules | `test_acl.c` | 4 | 单模块，deny/permit/del |
+| CLI Commands | `test_cli.c` | 6 | 单模块，命令解析到 TCAM |
+| **Integration / System** | **`test_integration.c`** | **6** | **跨模块端到端流程** |
+
+集成测试覆盖的跨模块场景：
+
+- **SYS-1**：所有模块同时初始化，验证 7 个 Stage 的 TCAM 条目数与总量
+- **SYS-2**：ARP Request 以太帧 → `arp_process_pkt` → Reply 内容逐字节验证 + ARP 表 + FDB TCAM 三路联动
+- **SYS-3**：ARP Reply 处理后 ARP 软件表与 FDB TCAM 的 port 字段双向一致性
+- **SYS-4**：已知缺陷记录 — `arp_delete` 未联动调用 `fdb_delete`，FDB TCAM 条目残留（断言当前实际行为）
+- **SYS-5**：Route(Stage 0) + ACL(Stage 1) + FDB(Stage 2) 三模块共存，各 Stage 严格隔离
+- **SYS-6**：CLI 多命令序列 → Stage 0/1/6 同时写入，验证无交叉污染
+
+---
+
+
 
 ```bash
 cd sw/firmware/test

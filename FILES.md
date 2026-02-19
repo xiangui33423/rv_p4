@@ -69,11 +69,12 @@ rv_p4/
                 ├── test_framework.h  # TEST_BEGIN/END/ASSERT 宏
                 ├── sim_hal.h         # 模拟 HAL 接口（内存 TCAM）
                 ├── sim_hal.c         # 模拟 HAL 实现（无 MMIO）
-                ├── test_main.c       # 测试套件入口（31 个用例）
+                ├── test_main.c       # 测试套件入口（37 个用例）
                 ├── test_vlan.c       # VLAN 测试（6 个）
                 ├── test_arp.c        # ARP 测试（7 个）
                 ├── test_qos.c        # QoS 测试（5 个）
                 ├── test_route.c      # 路由测试（3 个）
                 ├── test_acl.c        # ACL 测试（4 个）
-                └── test_cli.c        # CLI 测试（6 个）
+                ├── test_cli.c        # CLI 测试（6 个）
+                └── test_integration.c # 集成/系统测试（6 个）
 ```
